@@ -5,7 +5,7 @@
  *  - 保存のたびに直前の内容を .prev に残し、1日1回の控えを3日分持つ。
  */
 
-const APP_VER = '1.3.0';
+const APP_VER = '1.3.1';
 const KEY = 'seikyu.data';
 const KEY_PREV = 'seikyu.data.prev';
 const KEY_DAILY = 'seikyu.daily';
@@ -937,7 +937,7 @@ const FMT_DEF = {
     lead: { text: '下記のとおりご請求申し上げます。', align: 'left', size: 'm', bold: false, show: true },
     subject: { align: 'left', size: 'm', bold: false, show: true },
     amount: { align: 'left', size: 'm', bold: true },
-    due: { align: 'left', size: 'm', bold: false, show: true },
+    due: { align: 'left', size: 'm', bold: false, showPeriod: true, showDue: true },
     table: { align: 'left', size: 'm' },
     totals: { size: 'm' },
     bank: { align: 'left', size: 'm', bold: false, show: true },
@@ -953,7 +953,7 @@ const FMT_BLOCKS = [
   ['lead', 'あいさつ文', ['text', 'align', 'size', 'bold', 'show']],
   ['subject', '件名', ['align', 'size', 'bold', 'show']],
   ['amount', 'ご請求金額', ['align', 'size', 'bold'], '揃えは枠の位置です'],
-  ['due', '対象期間・お支払期限', ['align', 'size', 'bold', 'show']],
+  ['due', '対象期間・お支払期限', ['align', 'size', 'bold', 'period', 'duedate']],
   ['table', '明細表', ['align', 'size'], '揃えは「項目」の列です。数字は常に右揃え'],
   ['totals', '合計欄', ['size']],
   ['bank', 'お振込先', ['align', 'size', 'bold', 'show']],
@@ -968,6 +968,9 @@ function fmtOf(f, legacy) {
   if (!f) return out;
   ['font', 'swap', 'rows'].forEach(k => { if (f[k] !== undefined) out[k] = f[k]; });
   Object.keys(out.b).forEach(k => Object.assign(out.b[k], (f.b || {})[k] || {}));
+  // 1.3.0 の「表示する」をオフにしていた場合は、対象期間だけ消えていた
+  const od = (f.b || {}).due;
+  if (od && od.show === false && od.showPeriod === undefined) out.b.due.showPeriod = false;
   return out;
 }
 
@@ -1438,10 +1441,10 @@ function docHTML(snap) {
       <div class="l">ご請求金額</div>
       <div class="v">¥${yen(r.total)}-${m === 'none' ? '' : '<small>（税込）</small>'}</div>
     </div>
-    ${fb.due.show ? `<div class="doc-due" ${at('due')}>
-      対象期間　${slash(inv.from)} 〜 ${slash(inv.to)}
-      ${inv.due ? `<br>お支払期限　${jpDate(inv.due)}` : ''}
-    </div>` : `<div class="doc-due" ${at('due')}>${inv.due ? `お支払期限　${jpDate(inv.due)}` : ''}</div>`}
+    <div class="doc-due" ${at('due')}>${[
+      fb.due.showPeriod ? `対象期間　${slash(inv.from)} 〜 ${slash(inv.to)}` : '',
+      fb.due.showDue && inv.due ? `お支払期限　${jpDate(inv.due)}` : ''
+    ].filter(Boolean).join('<br>')}</div>
 
     <table class="doc-table" ${at('table')}>
       <thead><tr>
@@ -1527,6 +1530,8 @@ function openFormat() {
             <div class="fmt-checks">
               ${ctl.includes('bold') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="bold"${o.bold ? ' checked' : ''}> 太字</label>` : ''}
               ${ctl.includes('show') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="show"${o.show ? ' checked' : ''}> 表示する</label>` : ''}
+              ${ctl.includes('period') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="showPeriod"${o.showPeriod ? ' checked' : ''}> 対象期間を表示</label>` : ''}
+              ${ctl.includes('duedate') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="showDue"${o.showDue ? ' checked' : ''}> お支払期限を表示</label>` : ''}
               ${ctl.includes('seal') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="seal"${o.seal ? ' checked' : ''}> 印影を表示</label>` : ''}
             </div>
           </fieldset>`;
