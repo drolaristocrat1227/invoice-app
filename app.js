@@ -5,7 +5,7 @@
  *  - 保存のたびに直前の内容を .prev に残し、1日1回の控えを3日分持つ。
  */
 
-const APP_VER = '1.1.5';
+const APP_VER = '1.2.0';
 const KEY = 'seikyu.data';
 const KEY_PREV = 'seikyu.data.prev';
 const KEY_DAILY = 'seikyu.daily';
@@ -521,6 +521,61 @@ function openMenu() {
 }
 
 /* =========================================================
+   郵便番号から住所
+   日本郵便の郵便番号データを zip/上3桁.json に分けて同梱している。
+   外部のサービスには問い合わせない。
+   ========================================================= */
+const PREFS = ['', '北海道', '青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県', '茨城県', '栃木県', '群馬県',
+  '埼玉県', '千葉県', '東京都', '神奈川県', '新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県',
+  '静岡県', '愛知県', '三重県', '滋賀県', '京都府', '大阪府', '兵庫県', '奈良県', '和歌山県', '鳥取県', '島根県',
+  '岡山県', '広島県', '山口県', '徳島県', '香川県', '愛媛県', '高知県', '福岡県', '佐賀県', '長崎県', '熊本県',
+  '大分県', '宮崎県', '鹿児島県', '沖縄県'];
+const zipCache = {};
+
+async function lookupZip(z) {
+  const k = z.slice(0, 3);
+  if (!zipCache[k]) {
+    const res = await fetch(`zip/${k}.json`);
+    if (res.status === 404) { zipCache[k] = {}; return null; }
+    if (!res.ok) throw new Error('fetch');
+    zipCache[k] = await res.json();
+  }
+  const v = zipCache[k][z.slice(3)];
+  return v ? PREFS[v[0]] + v[1] + v[2] : null;
+}
+
+// フォーム内の zip と addr1 をつなぐ
+function bindZip(root) {
+  const zipEl = $('[name=zip]', root);
+  const addrEl = $('[name=addr1]', root);
+  if (!zipEl || !addrEl) return;
+  let auto = '';
+  let last = '';
+  zipEl.addEventListener('input', async () => {
+    const d = zipEl.value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\D/g, '');
+    if (d.length !== 7 || d === last) return;
+    last = d;
+    zipEl.value = d.slice(0, 3) + '-' + d.slice(3);
+    let a;
+    try {
+      a = await lookupZip(d);
+    } catch (_) {
+      toast(navigator.onLine ? '住所を調べられませんでした' : 'オフラインのため住所を調べられません');
+      last = '';
+      return;
+    }
+    if (!a) { toast('この郵便番号は見つかりませんでした'); return; }
+    const cur = addrEl.value.trim();
+    if (cur.startsWith(a)) return; // すでに番地まで入っている
+    if (cur && cur !== auto && !confirm(`住所を「${a}」に書き換えますか？`)) return;
+    addrEl.value = a;
+    auto = a;
+    addrEl.focus();
+    addrEl.setSelectionRange(a.length, a.length);
+  });
+}
+
+/* =========================================================
    請求先
    ========================================================= */
 const DUE_OPTS = [
@@ -564,7 +619,7 @@ const CLIENT_FIELDS = [
     { k: 'honor', l: '敬称', t: 'select', opts: [['御中', '御中'], ['様', '様'], ['', 'なし']] },
     { k: 'person', l: 'ご担当者（任意）', ph: '山田' }
   ] },
-  { k: 'zip', l: '郵便番号', ph: '000-0000', im: 'numeric' },
+  { k: 'zip', l: '郵便番号', ph: '000-0000', im: 'numeric', hint: '7桁入れると住所が自動で入ります' },
   { k: 'addr1', l: '住所' },
   { k: 'addr2', l: '建物名・部署など' },
   { k: 'due', l: '支払期限', t: 'select', opts: DUE_OPTS },
@@ -602,6 +657,7 @@ function openClientEdit(id) {
       (c ? `<p style="margin-top:28px"><button class="btn danger small" data-act="del" type="button">この請求先を削除</button></p>` : '');
     api.foot.hidden = false;
     api.foot.innerHTML = `<button class="btn dark wide" type="button" data-act="save">保存</button>`;
+    bindZip(api.body);
     api.foot.onclick = e => {
       if (!e.target.closest('[data-act=save]')) return;
       readForm(api.body, CLIENT_FIELDS, o);
@@ -775,7 +831,7 @@ function applyItemToEntries(it) {
 const ISSUER_FIELDS = [
   { k: 'name', l: '屋号・会社名・氏名', ph: '〇〇デザイン事務所' },
   { k: 'rep', l: '代表者・担当者名（任意）' },
-  { k: 'zip', l: '郵便番号', ph: '000-0000', im: 'numeric' },
+  { k: 'zip', l: '郵便番号', ph: '000-0000', im: 'numeric', hint: '7桁入れると住所が自動で入ります' },
   { k: 'addr1', l: '住所' },
   { k: 'addr2', l: '建物名など' },
   { k: 'tel', l: '電話番号', t: 'tel' },
@@ -811,6 +867,7 @@ function openIssuer() {
     api.foot.innerHTML = `<button class="btn dark wide" type="button" data-act="save">保存</button>`;
 
     const keep = () => readForm(api.body, ISSUER_FIELDS, o);
+    bindZip(api.body);
     $('#sealFile', api.body).onchange = async e => {
       const f = e.target.files[0];
       if (!f) return;
