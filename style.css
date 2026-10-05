@@ -387,13 +387,14 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
   font-family: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "BIZ UDMincho", "Noto Serif JP", serif;
   font-size: 10pt;
   line-height: 1.55;
+  --k: 1;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 .doc .g { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif; }
 .doc-title {
   text-align: center;
-  font-size: 22pt;
+  font-size: calc(18pt * var(--k, 1));
   letter-spacing: .6em;
   text-indent: .6em;
   font-weight: 600;
@@ -401,7 +402,7 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
   padding-bottom: 2mm;
   border-bottom: 3px double #000;
 }
-.doc-meta { text-align: right; font-size: 9.5pt; margin-bottom: 4mm; }
+.doc-meta { text-align: right; font-size: calc(9.5pt * var(--k, 1)); margin-bottom: 4mm; }
 .doc-meta table { margin-left: auto; border-collapse: collapse; }
 .doc-meta th { font-weight: normal; padding: 0 3mm 0 0; text-align: left; }
 .doc-meta td { text-align: right; }
@@ -410,17 +411,17 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
 .doc-to { flex: 1.15; }
 .doc-to .nm {
   margin-top: 0;
-  font-size: 15pt;
+  font-size: calc(15pt * var(--k, 1));
   border-bottom: 1px solid #000;
   padding: 0 1mm 1mm;
   margin-bottom: 2mm;
 }
-.doc-to .nm small { font-size: 11pt; margin-left: 3mm; }
-.doc-to .ad { font-size: 9pt; padding-left: 1mm; }
+.doc-to .nm small { font-size: calc(11pt * var(--k, 1)); margin-left: 3mm; }
+.doc-to .ad { font-size: calc(9pt * var(--k, 1)); padding-left: 1mm; }
 .doc-to .ad:first-child { margin-bottom: 1.5mm; }
-.doc-from { flex: 1; font-size: 9pt; line-height: 1.45; position: relative; padding-top: 1mm; min-height: 26mm; }
+.doc-from { flex: 1; font-size: calc(9pt * var(--k, 1)); line-height: 1.45; position: relative; padding-top: 1mm; min-height: 26mm; }
 .doc-from .who { position: relative; margin: 1.5mm 0 1.5mm; min-height: 12mm; }
-.doc-from .nm { font-size: 11.5pt; font-weight: 600; }
+.doc-from .nm { font-size: calc(11.5pt * var(--k, 1)); font-weight: 600; }
 .doc-from .seal {
   position: absolute;
   right: 0; top: -4mm;
@@ -430,8 +431,9 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
 }
 .doc-from .nm, .doc-from .rep { padding-right: 22mm; }
 
-.doc-lead { margin: 5mm 0 1.5mm; font-size: 10pt; }
-.doc-subject { font-size: 10pt; margin-bottom: 3mm; }
+.doc-lead { margin: 5mm 0 1.5mm; font-size: calc(10pt * var(--k, 1)); }
+.doc-lead-gap { height: 5mm; }
+.doc-subject { font-size: calc(10pt * var(--k, 1)); margin-bottom: 3mm; }
 .doc-amount {
   display: flex;
   align-items: stretch;
@@ -442,7 +444,7 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
 .doc-amount .l {
   background: #000; color: #fff;
   padding: 2.5mm 4mm;
-  font-size: 10.5pt;
+  font-size: calc(10.5pt * var(--k, 1));
   display: flex; align-items: center;
   letter-spacing: .1em;
 }
@@ -450,14 +452,14 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
   flex: 1;
   text-align: right;
   padding: 1.5mm 4mm;
-  font-size: 18pt;
+  font-size: calc(18pt * var(--k, 1));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.doc-amount .v small { font-size: 9pt; font-weight: normal; margin-left: 2mm; }
-.doc-due { font-size: 10pt; margin-bottom: 4mm; }
+.doc-amount .v small { font-size: calc(9pt * var(--k, 1)); font-weight: normal; margin-left: 2mm; }
+.doc-due { font-size: calc(10pt * var(--k, 1)); margin-bottom: 4mm; }
 
-.doc-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: calc(9.5pt * var(--k, 1)); }
 .doc-table th, .doc-table td { border: 0.8px solid #000; padding: 1.2mm 2mm; height: 6.8mm; }
 .doc-table thead th { background: #e6e6e6; font-weight: normal; letter-spacing: .1em; text-align: center; }
 .doc-table td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -468,26 +470,53 @@ legend { font-size: 13px; font-weight: 700; padding-right: 8px; }
 .doc-table .w-price { width: 25mm; }
 .doc-table .w-amt { width: 28mm; }
 .doc-table tbody tr { page-break-inside: avoid; break-inside: avoid; }
-.doc-table .rate { font-size: 8pt; margin-left: 1mm; }
+.doc-table .rate { font-size: calc(8pt * var(--k, 1)); margin-left: 1mm; }
 .doc-table tr.ded-first td { border-top: 2.2px solid #000; }
 
 .doc-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 6mm; margin-top: 4mm; break-inside: avoid; page-break-inside: avoid; }
-.doc-tax { font-size: 8.5pt; }
+.doc-tax { font-size: calc(8.5pt * var(--k, 1)); }
 .doc-tax table { border-collapse: collapse; }
 .doc-tax th, .doc-tax td { border: 0.8px solid #000; padding: 1mm 2.5mm; font-weight: normal; }
 .doc-tax th { background: #e6e6e6; }
 .doc-tax td { text-align: right; font-variant-numeric: tabular-nums; }
-.doc-totals { border-collapse: collapse; width: 74mm; font-size: 10pt; }
+.doc-totals { border-collapse: collapse; width: calc(74mm * var(--k, 1)); font-size: calc(10pt * var(--k, 1)); }
 .doc-totals th, .doc-totals td { border: 0.8px solid #000; padding: 1.4mm 2.5mm; }
 .doc-totals th { background: #e6e6e6; font-weight: normal; text-align: left; width: 32mm; }
 .doc-totals td { text-align: right; font-variant-numeric: tabular-nums; }
-.doc-totals tr.total th, .doc-totals tr.total td { font-weight: 600; font-size: 11pt; }
+.doc-totals tr.total th, .doc-totals tr.total td { font-weight: 600; font-size: calc(11pt * var(--k, 1)); }
 
 .doc-box { border: 0.8px solid #000; margin-top: 4mm; break-inside: avoid; page-break-inside: avoid; }
-.doc-box .h { background: #e6e6e6; border-bottom: 0.8px solid #000; padding: 1mm 3mm; font-size: 9pt; }
-.doc-box .c { padding: 1.5mm 3mm; font-size: 9.5pt; white-space: pre-wrap; min-height: 8mm; }
+.doc-box .h { background: #e6e6e6; border-bottom: 0.8px solid #000; padding: 1mm 3mm; font-size: calc(9pt * var(--k, 1)); }
+.doc-box .c { padding: 1.5mm 3mm; font-size: calc(9.5pt * var(--k, 1)); white-space: pre-wrap; min-height: 8mm; }
 .doc-bank td { padding: 0 4mm 0 0; vertical-align: top; }
 .doc-bank td:first-child { white-space: nowrap; color: #000; }
+
+/* 書式：太字 */
+.doc [data-b="b1"] { font-weight: 700; }
+.doc [data-b="b0"] { font-weight: 400; }
+.doc .doc-to[data-b], .doc .doc-from[data-b] { font-weight: 400; }
+.doc .doc-to[data-b="b1"] .nm, .doc .doc-from[data-b="b1"] .nm { font-weight: 700; }
+.doc .doc-to[data-b="b0"] .nm, .doc .doc-from[data-b="b0"] .nm { font-weight: 400; }
+.doc .doc-amount[data-b="b0"] .v { font-weight: 400; }
+.doc .doc-amount[data-b="b1"] .v { font-weight: 700; }
+.doc .doc-from .who:not(.has-seal) .nm, .doc .doc-from .who:not(.has-seal) .rep { padding-right: 0; }
+/* 書式：揃え（右・中央のときの請求元） */
+.doc .doc-from[style*="text-align:right"] .seal { right: auto; left: 0; }
+/* 書式：ゴシック */
+.doc.gothic { font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", Meiryo, sans-serif; }
+
+/* 書式の編集画面 */
+.fmt-pv { position: sticky; top: 0; z-index: 2; height: 40dvh; overflow-y: auto; background: #e9e9e9; padding: 8px; border-bottom: 1px solid #111; }
+.fmt-ctl { padding: 4px 14px 24px; }
+.fmt-warn { margin: 10px 0 4px; padding: 8px 10px; border: 1px dashed #111; font-size: 13px; }
+.fmt-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.fmt-name { width: 5.5em; flex: none; font-size: 13px; color: #444; }
+.fmt-checks { display: flex; flex-wrap: wrap; column-gap: 16px; }
+.fmt-blk { margin-top: 14px; }
+.seg { display: flex; flex: 1; border: 1px solid #111; border-radius: 4px; overflow: hidden; }
+.seg button { flex: 1; border: 0; border-left: 1px solid #111; background: #fff; padding: 7px 0; font-size: 13px; min-height: 36px; }
+.seg button:first-child { border-left: 0; }
+.seg button.on { background: #111; color: #fff; }
 
 /* =========================================================
    印刷

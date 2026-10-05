@@ -5,7 +5,7 @@
  *  - 保存のたびに直前の内容を .prev に残し、1日1回の控えを3日分持つ。
  */
 
-const APP_VER = '1.2.0';
+const APP_VER = '1.3.0';
 const KEY = 'seikyu.data';
 const KEY_PREV = 'seikyu.data.prev';
 const KEY_DAILY = 'seikyu.daily';
@@ -489,6 +489,7 @@ function openMenu() {
       <ul class="menu">
         <li><button data-act="invoice" type="button"><span>請求書を作る</span><small>›</small></button></li>
         <li><button data-act="history" type="button"><span>発行した請求書</span><small>${data.history.length}件</small></button></li>
+        <li><button data-act="format" type="button"><span>請求書の書式</span><small>揃え・大きさ・太字</small></button></li>
       </ul>
       <div class="menu-sec">登録</div>
       <ul class="menu">
@@ -509,6 +510,7 @@ function openMenu() {
       ({
         invoice: () => openInvoice(),
         history: openHistory,
+        format: openFormat,
         clients: openClients,
         items: () => openItems(),
         issuer: openIssuer,
@@ -921,6 +923,55 @@ function makeSeal(file) {
 }
 
 /* =========================================================
+   請求書の書式
+   ========================================================= */
+const FMT_DEF = {
+  font: 'mincho',
+  swap: false,
+  rows: 'auto',
+  b: {
+    title: { text: '御請求書', align: 'center', size: 'l', bold: true },
+    meta: { align: 'right', size: 'm', bold: false },
+    to: { align: 'left', size: 'm', bold: false },
+    from: { align: 'left', size: 'm', bold: true, seal: true },
+    lead: { text: '下記のとおりご請求申し上げます。', align: 'left', size: 'm', bold: false, show: true },
+    subject: { align: 'left', size: 'm', bold: false, show: true },
+    amount: { align: 'left', size: 'm', bold: true },
+    due: { align: 'left', size: 'm', bold: false, show: true },
+    table: { align: 'left', size: 'm' },
+    totals: { size: 'm' },
+    bank: { align: 'left', size: 'm', bold: false, show: true },
+    note: { align: 'left', size: 'm', bold: false, show: true }
+  }
+};
+// 編集画面に並べる順と、それぞれで変えられるもの
+const FMT_BLOCKS = [
+  ['title', '表題', ['text', 'align', 'size', 'bold']],
+  ['meta', '請求日・請求番号', ['align', 'size', 'bold']],
+  ['to', '請求先', ['align', 'size', 'bold'], '太字は名前だけに付きます'],
+  ['from', '請求元（自分）', ['align', 'size', 'bold', 'seal'], '太字は名前だけに付きます'],
+  ['lead', 'あいさつ文', ['text', 'align', 'size', 'bold', 'show']],
+  ['subject', '件名', ['align', 'size', 'bold', 'show']],
+  ['amount', 'ご請求金額', ['align', 'size', 'bold'], '揃えは枠の位置です'],
+  ['due', '対象期間・お支払期限', ['align', 'size', 'bold', 'show']],
+  ['table', '明細表', ['align', 'size'], '揃えは「項目」の列です。数字は常に右揃え'],
+  ['totals', '合計欄', ['size']],
+  ['bank', 'お振込先', ['align', 'size', 'bold', 'show']],
+  ['note', '備考', ['align', 'size', 'bold', 'show']]
+];
+const SIZE_K = { s: 0.85, m: 1, l: 1.2, xl: 1.45 };
+
+// 足りない設定は初期値で埋める。書式を持たない古い履歴は表題「請求書」のまま
+function fmtOf(f, legacy) {
+  const out = clone(FMT_DEF);
+  if (legacy) out.b.title.text = '請求書';
+  if (!f) return out;
+  ['font', 'swap', 'rows'].forEach(k => { if (f[k] !== undefined) out[k] = f[k]; });
+  Object.keys(out.b).forEach(k => Object.assign(out.b[k], (f.b || {})[k] || {}));
+  return out;
+}
+
+/* =========================================================
    請求書の作成
    ========================================================= */
 function dueFrom(rule, issue) {
@@ -1010,6 +1061,7 @@ function makeSnap(inv) {
     issuer: clone(data.issuer),
     client: clone(clientById(inv.clientId) || {}),
     raw: collect(inv),
+    format: fmtOf(data.format),
     deduct: cleanDed(((clientById(inv.clientId) || {}).deduct || []).concat(inv.deduct || [])),
     itemOrder: data.items.map(i => i.id)
   };
@@ -1283,11 +1335,23 @@ function docHTML(snap) {
   const m = r.mode;
   const has8 = r.rows.some(x => x.r === 8) && m !== 'none';
   const zipS = z => z ? '〒' + esc(z) : '';
+  const F = fmtOf(snap.format, !snap.format);
+  const fb = F.b;
+  // 各ブロックの属性：大きさは --k、揃え、太字は b1/b0
+  const at = (k, extra = '') => {
+    const o = fb[k];
+    const st = [`--k:${SIZE_K[o.size] || 1}`];
+    if (o.align && k !== 'amount' && k !== 'table') st.push(`text-align:${o.align}`);
+    if (k === 'amount') st.push(o.align === 'center' ? 'margin-left:auto;margin-right:auto' : o.align === 'right' ? 'margin-left:auto' : '');
+    const cls = o.bold === undefined ? '' : (o.bold ? ' b1' : ' b0');
+    return `data-blk="${k}" style="${st.filter(Boolean).join(';')}"${cls ? ` data-b="${cls.trim()}"` : ''} ${extra}`;
+  };
+  const itemAlign = fb.table.align || 'left';
 
-  const MIN_ROWS = byDate ? 12 : 8;
+  const MIN_ROWS = F.rows === 'auto' ? (byDate ? 12 : 8) : Number(F.rows);
   const rowsHTML = r.rows.map(x => `<tr>
       ${byDate ? `<td class="c">${x.d ? md(x.d) : ''}</td>` : ''}
-      <td>${esc(x.n)}${x.r === 8 && m !== 'none' ? '<span class="rate">※</span>' : ''}</td>
+      <td style="text-align:${itemAlign}">${esc(x.n)}${x.r === 8 && m !== 'none' ? '<span class="rate">※</span>' : ''}</td>
       <td class="n">${qtyStr(x.q)}</td>
       <td class="c">${esc(x.u)}</td>
       <td class="n">${yen(x.p)}</td>
@@ -1298,7 +1362,7 @@ function docHTML(snap) {
     // 差し引く分は太線で区切って下にまとめる
     r.ded.map((x, i) => `<tr class="ded${i ? '' : ' ded-first'}">
       ${byDate ? '<td></td>' : ''}
-      <td>${esc(x.n)}</td>
+      <td style="text-align:${itemAlign}">${esc(x.n)}</td>
       <td></td><td></td><td></td>
       <td class="n">△${yen(x.amt)}</td>
     </tr>`).join('');
@@ -1331,15 +1395,9 @@ function docHTML(snap) {
     is.holder ? `<tr><td>口座名義　${esc(is.holder)}</td></tr>` : ''
   ].join('');
 
-  return `<div class="doc">
-    <h1 class="doc-title">請求書</h1>
-    <div class="doc-meta"><table>
-      <tr><th>請求日</th><td>${jpDate(inv.issue)}</td></tr>
-      ${inv.no ? `<tr><th>請求番号</th><td>${esc(inv.no)}</td></tr>` : ''}
-    </table></div>
-
-    <div class="doc-parties">
-      <div class="doc-to">
+  const seal2 = fb.from.seal === false ? '' : seal;
+  const toHTML = `
+      <div class="doc-to" ${at('to')}>
         <div class="ad">
           ${cl.zip ? zipS(cl.zip) + '<br>' : ''}
           ${cl.addr1 ? esc(cl.addr1) + '<br>' : ''}
@@ -1347,34 +1405,45 @@ function docHTML(snap) {
         </div>
         <div class="nm">${esc(cl.name)}<small>${esc(cl.honor || '')}</small></div>
         ${cl.person ? `<div class="ad">${esc(cl.person)} 様</div>` : ''}
-      </div>
-      <div class="doc-from">
+      </div>`;
+  const fromHTML = `
+      <div class="doc-from" ${at('from')}>
         ${is.zip ? `<div>${zipS(is.zip)}</div>` : ''}
         ${is.addr1 ? `<div>${esc(is.addr1)}</div>` : ''}
         ${is.addr2 ? `<div>${esc(is.addr2)}</div>` : ''}
-        <div class="who">
-          ${seal ? `<img class="seal" src="${seal}" alt="">` : ''}
+        <div class="who${seal2 ? ' has-seal' : ''}">
+          ${seal2 ? `<img class="seal" src="${seal2}" alt="">` : ''}
           <div class="nm">${esc(is.name)}</div>
           ${is.rep ? `<div class="rep">${esc(is.rep)}</div>` : ''}
         </div>
         ${is.tel ? `<div>TEL ${esc(is.tel)}</div>` : ''}
         ${is.email ? `<div>${esc(is.email)}</div>` : ''}
         ${is.regno ? `<div>登録番号 ${esc(is.regno)}</div>` : ''}
-      </div>
+      </div>`;
+
+  return `<div class="doc${F.font === 'gothic' ? ' gothic' : ''}">
+    <h1 class="doc-title" ${at('title')}>${esc(fb.title.text || '御請求書')}</h1>
+    <div class="doc-meta" ${at('meta')}><table>
+      <tr><th>請求日</th><td>${jpDate(inv.issue)}</td></tr>
+      ${inv.no ? `<tr><th>請求番号</th><td>${esc(inv.no)}</td></tr>` : ''}
+    </table></div>
+
+    <div class="doc-parties">
+      ${F.swap ? fromHTML + toHTML : toHTML + fromHTML}
     </div>
 
-    <p class="doc-lead">下記のとおりご請求申し上げます。</p>
-    ${inv.subject ? `<div class="doc-subject">件名　${esc(inv.subject)}</div>` : ''}
-    <div class="doc-amount">
+    ${fb.lead.show && fb.lead.text ? `<p class="doc-lead" ${at('lead')}>${esc(fb.lead.text)}</p>` : '<div class="doc-lead-gap"></div>'}
+    ${fb.subject.show && inv.subject ? `<div class="doc-subject" ${at('subject')}>件名　${esc(inv.subject)}</div>` : ''}
+    <div class="doc-amount" ${at('amount')}>
       <div class="l">ご請求金額</div>
       <div class="v">¥${yen(r.total)}-${m === 'none' ? '' : '<small>（税込）</small>'}</div>
     </div>
-    <div class="doc-due">
+    ${fb.due.show ? `<div class="doc-due" ${at('due')}>
       対象期間　${slash(inv.from)} 〜 ${slash(inv.to)}
       ${inv.due ? `<br>お支払期限　${jpDate(inv.due)}` : ''}
-    </div>
+    </div>` : `<div class="doc-due" ${at('due')}>${inv.due ? `お支払期限　${jpDate(inv.due)}` : ''}</div>`}
 
-    <table class="doc-table">
+    <table class="doc-table" ${at('table')}>
       <thead><tr>
         ${byDate ? '<th class="w-date">日付</th>' : ''}
         <th>項目</th>
@@ -1386,18 +1455,144 @@ function docHTML(snap) {
       <tbody>${rowsHTML}</tbody>
     </table>
 
-    <div class="doc-bottom">
+    <div class="doc-bottom" ${at('totals')}>
       ${taxTable || '<div></div>'}
       ${totals}
     </div>
 
-    ${bankLines ? `<div class="doc-box">
+    ${fb.bank.show && bankLines ? `<div class="doc-box" ${at('bank')}>
       <div class="h">お振込先</div>
       <div class="c" style="white-space:normal"><table class="doc-bank">${bankLines}</table></div>
     </div>` : ''}
 
-    ${inv.note ? `<div class="doc-box"><div class="h">備考</div><div class="c">${esc(inv.note)}</div></div>` : ''}
+    ${fb.note.show && inv.note ? `<div class="doc-box" ${at('note')}><div class="h">備考</div><div class="c">${esc(inv.note)}</div></div>` : ''}
   </div>`;
+}
+
+/* =========================================================
+   請求書の書式（編集画面）
+   ========================================================= */
+// 見本に使う請求書：直近の発行分 → 今月の入力 → 架空の見本
+function sampleSnap() {
+  if (data.history.length) return clone(data.history[0]);
+  const c = curClient();
+  const issue = ymd(new Date());
+  if (c) {
+    const from = ymd(new Date(viewY, viewM, 1)), to = ymd(endOfMonth(viewY, viewM));
+    const sn = makeSnap({ clientId: c.id, from, to, issue, due: dueFrom(c.due, issue), no: '', subject: defaultSubject(from, to),
+      group: 'item', withholding: false, extra: [], deduct: [], note: data.issuer.note || '' });
+    if (sn.raw.length) return sn;
+  }
+  const d = new Date();
+  const from = ymd(new Date(d.getFullYear(), d.getMonth(), 1)), to = ymd(endOfMonth(d.getFullYear(), d.getMonth()));
+  return {
+    inv: { clientId: '', from, to, issue, due: dueFrom('next-end', issue), no: '', subject: defaultSubject(from, to), group: 'item', withholding: false, note: data.issuer.note || '' },
+    issuer: Object.assign(clone(data.issuer), { name: data.issuer.name || '（自分の名前）' }),
+    client: { name: '株式会社サンプル', honor: '御中', zip: '000-0000', addr1: '〇〇県〇〇市〇〇町1-2-3', taxMode: 'incl', deduct: [] },
+    raw: [{ d: from, i: '', n: '作業費', q: 5, u: '日', p: 15000, r: 10 }, { d: '', i: '', n: '交通費', q: 1, u: '', p: 3200, r: 10, extra: true }],
+    deduct: [], itemOrder: []
+  };
+}
+
+function openFormat() {
+  const F = fmtOf(data.format);
+  const seg = (k, prop, opts, cur) => `<div class="seg" data-k="${k}" data-p="${prop}">${opts.map(([v, l]) =>
+    `<button type="button" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const ALIGN = [['left', '左'], ['center', '中央'], ['right', '右']];
+  const SIZE = [['s', '小'], ['m', '標準'], ['l', '大'], ['xl', '特大']];
+  let focusBlk = '';
+
+  openPanel('請求書の書式', api => {
+    api.body.style.padding = '0';
+    api.body.innerHTML = `
+      <div class="fmt-pv"><div class="pv-box"><div class="preview-scale"></div></div></div>
+      <div class="fmt-ctl">
+        <p class="fmt-warn" hidden>A4の1枚に収まらず、2ページになります。文字を小さくするか、空き行を減らしてください。</p>
+        <div class="fmt-row">
+          <div class="fmt-name">書体</div>
+          ${seg('_', 'font', [['mincho', '明朝'], ['gothic', 'ゴシック']], F.font)}
+        </div>
+        <div class="fmt-row">
+          <div class="fmt-name">明細の空き行</div>
+          ${seg('_', 'rows', [['auto', '標準'], ['0', 'なし'], ['4', '4行'], ['12', '12行']], F.rows)}
+        </div>
+        <label class="check"><input type="checkbox" data-k="_" data-p="swap"${F.swap ? ' checked' : ''}> 請求先と請求元の左右を入れ替える</label>
+        ${FMT_BLOCKS.map(([k, label, ctl, hint]) => {
+          const o = F.b[k];
+          return `<fieldset class="fmt-blk" data-blkset="${k}"><legend>${label}</legend>
+            ${hint ? `<p class="note" style="margin:0 0 6px">${hint}</p>` : ''}
+            ${ctl.includes('text') ? `<div class="field" style="margin-bottom:8px"><input type="text" data-k="${k}" data-p="text" value="${esc(o.text)}"></div>` : ''}
+            ${ctl.includes('align') ? `<div class="fmt-row"><div class="fmt-name">揃え</div>${seg(k, 'align', ALIGN, o.align)}</div>` : ''}
+            ${ctl.includes('size') ? `<div class="fmt-row"><div class="fmt-name">大きさ</div>${seg(k, 'size', SIZE, o.size)}</div>` : ''}
+            <div class="fmt-checks">
+              ${ctl.includes('bold') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="bold"${o.bold ? ' checked' : ''}> 太字</label>` : ''}
+              ${ctl.includes('show') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="show"${o.show ? ' checked' : ''}> 表示する</label>` : ''}
+              ${ctl.includes('seal') ? `<label class="check"><input type="checkbox" data-k="${k}" data-p="seal"${o.seal ? ' checked' : ''}> 印影を表示</label>` : ''}
+            </div>
+          </fieldset>`;
+        }).join('')}
+      </div>`;
+    api.foot.hidden = false;
+    api.foot.innerHTML = `<div class="btn-row"><button class="btn" type="button" data-act="reset">初期設定に戻す</button><button class="btn dark" type="button" data-act="done">完了</button></div>`;
+
+    const pv = $('.fmt-pv', api.body);
+    const box = $('.pv-box', api.body);
+    const sc = $('.preview-scale', api.body);
+    const draw = () => {
+      const sn = sampleSnap();
+      sn.format = fmtOf(data.format);
+      sc.innerHTML = docHTML(sn);
+      const doc = $('.doc', sc);
+      const k = Math.min(1, (pv.clientWidth - 16) / doc.offsetWidth);
+      sc.style.transform = `scale(${k})`;
+      box.style.width = doc.offsetWidth * k + 'px';
+      box.style.height = doc.offsetHeight * k + 'px';
+      box.style.margin = '0 auto';
+      // 中身の高さを測る（画面の見本はA4の高さが最低保証されているので一時的に外す）
+      // 印刷時は用紙の余白8mm×2と上の詰め2mm。画面の見本は上下の余白が計30mm
+      doc.style.minHeight = '0';
+      const mm = doc.offsetHeight * 25.4 / 96 - 30 + 2;
+      doc.style.minHeight = '';
+      $('.fmt-warn', api.body).hidden = mm <= 281;
+      // 今触っているところが見えるように見本をスクロール
+      const t = focusBlk && $(`[data-blk="${focusBlk}"]`, sc);
+      if (t) pv.scrollTop = Math.max(0, t.offsetTop * k - 20);
+    };
+    const set = (k, p, v) => {
+      data.format = fmtOf(data.format);
+      if (k === '_') data.format[p] = v; else data.format.b[k][p] = v;
+      focusBlk = k === '_' ? '' : k;
+      save();
+      draw();
+    };
+    requestAnimationFrame(draw);
+
+    api.body.onclick = e => {
+      const b = e.target.closest('.seg button');
+      if (!b) return;
+      const sg = b.parentElement;
+      $$('button', sg).forEach(x => x.classList.toggle('on', x === b));
+      set(sg.dataset.k, sg.dataset.p, b.dataset.v);
+    };
+    api.body.onchange = e => {
+      const el = e.target;
+      if (el.type === 'checkbox') set(el.dataset.k, el.dataset.p, el.checked);
+    };
+    api.body.oninput = e => {
+      const el = e.target;
+      if (el.type === 'text') set(el.dataset.k, el.dataset.p, el.value);
+    };
+    api.foot.onclick = e => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'done') { closeTop(); return; }
+      if (b.dataset.act === 'reset' && confirm('書式を初期設定に戻しますか？')) {
+        data.format = null;
+        save();
+        api.refresh();
+      }
+    };
+  });
 }
 
 /* =========================================================
@@ -1559,6 +1754,10 @@ function openHelp() {
       交通費など、カレンダーにない分は「追加の明細」で足せます。<br>
       請求先に差し引かれる金額は「差し引く金額」へ。毎回引かれるもの（固定）は消すまで毎回載り、「今回だけ」はその請求書にだけ載ります。
       固定のものは請求先の編集画面からも直せます。</p>
+
+      <p><b>請求書の書式</b><br>
+      メニュー「請求書の書式」で、表題・請求先・明細表など部分ごとに、揃え（左・中央・右）、文字の大きさ、太字、表示するかどうかを変えられます。
+      上に見本が出るので、見ながら調整してください。ここで決めた書式は、それ以降に作る請求書すべてに使われます。</p>
 
       <p><b>税込み・税抜き</b><br>
       請求先ごとに決められます（最初は税込み）。メニュー「請求先」から変えてください。</p>
