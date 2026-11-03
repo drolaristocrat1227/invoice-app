@@ -5,7 +5,7 @@
  *  - 保存のたびに直前の内容を .prev に残し、1日1回の控えを3日分持つ。
  */
 
-const APP_VER = '1.3.1';
+const APP_VER = '1.4.0';
 const KEY = 'seikyu.data';
 const KEY_PREV = 'seikyu.data.prev';
 const KEY_DAILY = 'seikyu.daily';
@@ -144,6 +144,14 @@ const stack = [];
 history.replaceState({ depth: 0 }, '');
 
 function pushLayer(el, opts = {}) {
+  // 後から開いたものほど手前に出す（パネルの上にシート、シートの上にパネルのどちらもある）
+  const z = 10 + stack.length * 3;
+  if (el.classList.contains('panel')) el.style.zIndex = z + 2;
+  else {
+    const sh = $('.shade', el), st = $('.sheet', el);
+    if (sh) sh.style.zIndex = z;
+    if (st) st.style.zIndex = z + 1;
+  }
   layer.appendChild(el);
   stack.push(Object.assign({ el }, opts));
   history.pushState({ depth: stack.length }, '');
@@ -1292,10 +1300,15 @@ function openPreview(snap, opts = {}) {
     api.foot.onclick = e => {
       const b = e.target.closest('[data-act]');
       if (!b) return;
-      if (b.dataset.act === 'print') {
+      if (b.dataset.act === 'print') askFileName(snap, name => {
+        snap.fileName = name;
         if (opts.fresh) { keepHistory(snap); if (opts.onKept) opts.onKept(snap.id); }
-        printDoc(snap);
-      }
+        else if (snap.id) {
+          const h = data.history.find(x => x.id === snap.id);
+          if (h) { h.fileName = name; save(); }
+        }
+        printDoc(snap, name);
+      });
       if (b.dataset.act === 'del') {
         if (!confirm('この請求書を履歴から削除しますか？\n（カレンダーの入力は消えません）')) return;
         data.history = data.history.filter(h => h.id !== snap.id);
@@ -1318,12 +1331,45 @@ function keepHistory(snap) {
   save();
 }
 
-function printDoc(snap) {
+// ファイル名に使えない文字を除く
+const safeName = n => String(n || '').replace(/[\\/:*?"<>|\r\n\t]+/g, '').trim().slice(0, 100);
+
+function defaultFileName(snap) {
+  const title = fmtOf(snap.format, !snap.format).b.title.text || '御請求書';
+  const when = snap.inv.subject || snap.inv.issue.replace(/-/g, '');
+  return safeName([title, snap.client.name, snap.inv.no, when].filter(Boolean).join('_'));
+}
+
+// 印刷・PDF保存の前にファイル名を聞く
+function askFileName(snap, done) {
+  openSheet('ファイル名', api => {
+    api.body.innerHTML = `
+      <div class="field">
+        <label for="fnInput">PDFで保存するときの名前</label>
+        <input type="text" id="fnInput" value="${esc(snap.fileName || defaultFileName(snap))}" enterkeyhint="done">
+        <div class="hint">「.pdf」は自動で付きます。\ / : * ? " &lt; &gt; | は使えません。</div>
+      </div>
+      <button class="link" type="button" data-act="def">最初の名前に戻す</button>`;
+    api.foot.hidden = false;
+    api.foot.innerHTML = `<button class="btn dark wide" type="button" data-act="go">この名前で印刷・PDF保存</button>`;
+    const input = $('#fnInput', api.body);
+    setTimeout(() => { input.focus(); input.select(); }, 250);
+    const go = () => {
+      const name = safeName(input.value) || defaultFileName(snap);
+      closeTop();
+      setTimeout(() => done(name), 300);
+    };
+    api.body.onclick = e => { if (e.target.closest('[data-act=def]')) input.value = defaultFileName(snap); };
+    input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    api.foot.onclick = e => { if (e.target.closest('[data-act=go]')) go(); };
+  });
+}
+
+function printDoc(snap, name) {
   const root = $('#print-root');
   root.innerHTML = docHTML(snap);
   const before = document.title;
-  const cl = snap.client.name || '';
-  document.title = ['請求書', cl, snap.inv.no || snap.inv.issue.replace(/-/g, '')].filter(Boolean).join('_').replace(/[\\/:*?"<>|\s]+/g, '');
+  document.title = safeName(name) || defaultFileName(snap);
   const restore = () => { document.title = before; window.removeEventListener('afterprint', restore); };
   window.addEventListener('afterprint', restore);
   setTimeout(() => { window.print(); setTimeout(restore, 1500); }, 50);
