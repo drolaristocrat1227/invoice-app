@@ -5,7 +5,7 @@
  *  - 保存のたびに直前の内容を .prev に残し、1日1回の控えを3日分持つ。
  */
 
-const APP_VER = '1.4.0';
+const APP_VER = '1.4.1';
 const KEY = 'seikyu.data';
 const KEY_PREV = 'seikyu.data.prev';
 const KEY_DAILY = 'seikyu.daily';
@@ -1347,7 +1347,7 @@ function askFileName(snap, done) {
       <div class="field">
         <label for="fnInput">PDFで保存するときの名前</label>
         <input type="text" id="fnInput" value="${esc(snap.fileName || defaultFileName(snap))}" enterkeyhint="done">
-        <div class="hint">「.pdf」は自動で付きます。\ / : * ? " &lt; &gt; | は使えません。</div>
+        <div class="hint">「.pdf」は自動で付きます。\\ / : * ? " &lt; &gt; | は使えません。</div>
       </div>
       <button class="link" type="button" data-act="def">最初の名前に戻す</button>`;
     api.foot.hidden = false;
